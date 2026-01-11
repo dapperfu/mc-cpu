@@ -6,7 +6,7 @@
 # Usage:
 #   minecraft-cpu <percentage>  - Set CPU limit (0-max, where max = cores * 100)
 #   minecraft-cpu freeze         - Set CPU to 0%
-#   minecraft-cpu normal         - Set CPU to max
+#   minecraft-cpu normal|full|inf - Set CPU to max (unlimited)
 #   minecraft-cpu pause          - Pause all Minecraft processes
 #   minecraft-cpu resume         - Resume all Minecraft processes
 #
@@ -14,6 +14,8 @@
 #   minecraft-cpu 50   - 50% of one core (0.5 cores)
 #   minecraft-cpu 100  - 100% of one core (1 full core)
 #   minecraft-cpu 200  - 200% = 2 full cores
+#   minecraft-cpu full - Unlimited CPU (all cores available)
+#   minecraft-cpu inf  - Unlimited CPU (all cores available)
 #
 
 set -euo pipefail
@@ -146,12 +148,12 @@ main() {
         local cores
         cores=$(detect_cpu_cores)
         max_percent=$(get_max_percentage)
-        echo "Usage: minecraft-cpu <percentage|freeze|normal|pause|resume>" >&2
+        echo "Usage: minecraft-cpu <percentage|freeze|normal|full|inf|pause|resume>" >&2
         echo "  percentage: CPU limit as percentage (0-${max_percent}, where 100 = 1 core)" >&2
         echo "             Examples: 50 = 0.5 cores, 100 = 1 core, 200 = 2 cores" >&2
         echo "             System has ${cores} core(s), max = ${max_percent}%" >&2
         echo "  freeze:     Set CPU to 0%" >&2
-        echo "  normal:     Set CPU to max" >&2
+        echo "  normal|full|inf: Set CPU to max (unlimited, all cores available)" >&2
         echo "  pause:      Pause all Minecraft processes" >&2
         echo "  resume:     Resume all Minecraft processes" >&2
         exit 1
@@ -165,7 +167,7 @@ main() {
         freeze)
             set_cpu_limit 0
             ;;
-        normal)
+        normal|full|inf)
             set_cpu_limit "max"
             ;;
         pause)
@@ -177,7 +179,7 @@ main() {
         *)
             # Validate percentage
             if ! [[ "${arg}" =~ ^[0-9]+$ ]]; then
-                echo "Error: Invalid argument '${arg}'. Must be a number (0-${max_percent}) or one of: freeze, normal, pause, resume" >&2
+                echo "Error: Invalid argument '${arg}'. Must be a number (0-${max_percent}) or one of: freeze, normal, full, inf, pause, resume" >&2
                 exit 1
             fi
             
