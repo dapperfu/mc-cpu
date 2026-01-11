@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Consolidated: tracks processes by reading current limit and reapplying it
+# Calls minecraft-cpu with current limit to re-track processes
 # This preserves the current CPU limit while tracking all users' processes
 CGROUP_PATH="/sys/fs/cgroup/minecraft"
 CPU_MAX_FILE="${CGROUP_PATH}/cpu.max"
