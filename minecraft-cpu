@@ -4,11 +4,16 @@
 # Controls CPU limits for Minecraft processes using cgroups v2
 #
 # Usage:
-#   minecraft-cpu <percentage>  - Set CPU limit (0-100)
+#   minecraft-cpu <percentage>  - Set CPU limit (0-max, where max = cores * 100)
 #   minecraft-cpu freeze         - Set CPU to 0%
 #   minecraft-cpu normal         - Set CPU to max
 #   minecraft-cpu pause          - Pause all Minecraft processes
 #   minecraft-cpu resume         - Resume all Minecraft processes
+#
+# Examples:
+#   minecraft-cpu 50   - 50% of one core (0.5 cores)
+#   minecraft-cpu 100  - 100% of one core (1 full core)
+#   minecraft-cpu 200  - 200% = 2 full cores
 #
 
 set -euo pipefail
@@ -17,6 +22,24 @@ CGROUP_PATH="/sys/fs/cgroup/minecraft"
 CPU_MAX_FILE="${CGROUP_PATH}/cpu.max"
 CGROUP_PROCS_FILE="${CGROUP_PATH}/cgroup.procs"
 PROCESS_PATTERN="org.multimc.EntryPoint"
+
+# Detect number of CPU cores
+detect_cpu_cores() {
+    if command -v nproc >/dev/null 2>&1; then
+        nproc
+    elif [ -f /proc/cpuinfo ]; then
+        grep -c ^processor /proc/cpuinfo 2>/dev/null || echo "1"
+    else
+        echo "1"
+    fi
+}
+
+# Get maximum percentage based on CPU cores
+get_max_percentage() {
+    local cores
+    cores=$(detect_cpu_cores)
+    echo $((cores * 100))
+}
 
 # Find all Minecraft processes across all users
 find_minecraft_processes() {
@@ -53,6 +76,8 @@ track_processes() {
 set_cpu_limit() {
     local limit="${1}"
     local cpu_max_value
+    local cores
+    cores=$(detect_cpu_cores)
     
     # Track processes first
     track_processes || return 1
@@ -60,12 +85,20 @@ set_cpu_limit() {
     # Set CPU limit
     if [ "${limit}" = "max" ]; then
         cpu_max_value="max 100000"
+        echo "Set CPU limit to max (unlimited, ${cores} core(s) available)"
     else
         cpu_max_value="${limit} 100000"
+        # Calculate cores for display
+        local cores_used=$((limit / 100000))
+        local percent_used=$((limit / 1000))
+        if [ "${cores_used}" -gt 0 ]; then
+            echo "Set CPU limit to ${percent_used}% (${cores_used} core(s))"
+        else
+            echo "Set CPU limit to ${percent_used}% (${cpu_max_value})"
+        fi
     fi
     
     echo "${cpu_max_value}" | sudo tee "${CPU_MAX_FILE}" > /dev/null
-    echo "Set CPU limit to ${cpu_max_value}"
 }
 
 # Pause all Minecraft processes
@@ -109,8 +142,14 @@ resume_processes() {
 # Main function
 main() {
     if [ $# -eq 0 ]; then
+        local max_percent
+        local cores
+        cores=$(detect_cpu_cores)
+        max_percent=$(get_max_percentage)
         echo "Usage: minecraft-cpu <percentage|freeze|normal|pause|resume>" >&2
-        echo "  percentage: CPU limit as percentage (0-100)" >&2
+        echo "  percentage: CPU limit as percentage (0-${max_percent}, where 100 = 1 core)" >&2
+        echo "             Examples: 50 = 0.5 cores, 100 = 1 core, 200 = 2 cores" >&2
+        echo "             System has ${cores} core(s), max = ${max_percent}%" >&2
         echo "  freeze:     Set CPU to 0%" >&2
         echo "  normal:     Set CPU to max" >&2
         echo "  pause:      Pause all Minecraft processes" >&2
@@ -119,6 +158,8 @@ main() {
     fi
     
     local arg="${1}"
+    local max_percent
+    max_percent=$(get_max_percentage)
     
     case "${arg}" in
         freeze)
@@ -136,16 +177,23 @@ main() {
         *)
             # Validate percentage
             if ! [[ "${arg}" =~ ^[0-9]+$ ]]; then
-                echo "Error: Invalid argument '${arg}'. Must be a number (0-100) or one of: freeze, normal, pause, resume" >&2
+                echo "Error: Invalid argument '${arg}'. Must be a number (0-${max_percent}) or one of: freeze, normal, pause, resume" >&2
                 exit 1
             fi
             
-            if [ "${arg}" -lt 0 ] || [ "${arg}" -gt 100 ]; then
-                echo "Error: Percentage must be between 0 and 100" >&2
+            if [ "${arg}" -lt 0 ]; then
+                echo "Error: Percentage must be >= 0" >&2
                 exit 1
             fi
             
-            # Convert percentage to cgroup format (e.g., 50% -> 50000)
+            if [ "${arg}" -gt "${max_percent}" ]; then
+                local cores
+                cores=$(detect_cpu_cores)
+                echo "Error: Percentage ${arg}% exceeds maximum ${max_percent}% (${cores} core(s) available)" >&2
+                exit 1
+            fi
+            
+            # Convert percentage to cgroup format (e.g., 50% -> 50000, 200% -> 200000)
             local limit=$((arg * 1000))
             set_cpu_limit "${limit}"
             ;;
