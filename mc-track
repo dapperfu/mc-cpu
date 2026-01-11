@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Calls minecraft-cpu with current limit to re-track processes
+# Calls mc-cpu with current limit to re-track processes
 # This preserves the current CPU limit while tracking all users' processes
 CGROUP_PATH="/sys/fs/cgroup/minecraft"
 CPU_MAX_FILE="${CGROUP_PATH}/cpu.max"
@@ -8,13 +8,13 @@ if [ -f "${CPU_MAX_FILE}" ]; then
     # Read current limit and reapply to trigger tracking
     current_limit=$(cat "${CPU_MAX_FILE}" | awk '{print $1}')
     if [ "${current_limit}" = "max" ]; then
-        exec "$(dirname "$0")/minecraft-cpu" normal
+        exec "$(dirname "$0")/mc-cpu" normal
     else
         # Convert from cgroup format (e.g., 50000) to percentage (e.g., 50)
         percentage=$((current_limit / 1000))
-        exec "$(dirname "$0")/minecraft-cpu" "${percentage}"
+        exec "$(dirname "$0")/mc-cpu" "${percentage}"
     fi
 else
     # No limit set, use normal (max) as default
-    exec "$(dirname "$0")/minecraft-cpu" normal
+    exec "$(dirname "$0")/mc-cpu" normal
 fi

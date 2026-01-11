@@ -19,18 +19,18 @@ setup:
 		echo "Cgroup directory already exists: /sys/fs/cgroup/minecraft"; \
 	fi
 
-# Install minecraft-cpu script to /usr/local/bin
+# Install mc-cpu script to /usr/local/bin
 install-script:
-	@echo "Installing minecraft-cpu script..."
-	sudo cp minecraft-cpu /usr/local/bin/minecraft-cpu
-	sudo chmod +x /usr/local/bin/minecraft-cpu
-	@echo "Installed minecraft-cpu to /usr/local/bin/minecraft-cpu"
+	@echo "Installing mc-cpu script..."
+	sudo cp mc-cpu /usr/local/bin/mc-cpu
+	sudo chmod +x /usr/local/bin/mc-cpu
+	@echo "Installed mc-cpu to /usr/local/bin/mc-cpu"
 
 # Remove installed script
 clean:
 	@echo "Removing installed script..."
-	sudo rm -f /usr/local/bin/minecraft-cpu
-	@echo "Removed /usr/local/bin/minecraft-cpu"
+	sudo rm -f /usr/local/bin/mc-cpu
+	@echo "Removed /usr/local/bin/mc-cpu"
 
 # Display help
 help:
@@ -38,6 +38,6 @@ help:
 	@echo "  make all          - Install packages, setup cgroup, and install script"
 	@echo "  make install      - Install cgroup-tools package"
 	@echo "  make setup        - Create /sys/fs/cgroup/minecraft cgroup"
-	@echo "  make install-script - Install minecraft-cpu script to /usr/local/bin"
+	@echo "  make install-script - Install mc-cpu script to /usr/local/bin"
 	@echo "  make clean        - Remove installed script"
 	@echo "  make help         - Display this help message"
