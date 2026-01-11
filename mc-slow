@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Consolidated: calls minecraft-cpu 10 (10% CPU)
+exec "$(dirname "$0")/minecraft-cpu" 10

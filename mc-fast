@@ -1,0 +1,3 @@
+#!/usr/bin/env bash
+# Consolidated: calls minecraft-cpu 70 (70% CPU)
+exec "$(dirname "$0")/minecraft-cpu" 70
