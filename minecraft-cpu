@@ -1,0 +1,155 @@
+#!/usr/bin/env bash
+#
+# Minecraft CPU Control Script
+# Controls CPU limits for Minecraft processes using cgroups v2
+#
+# Usage:
+#   minecraft-cpu <percentage>  - Set CPU limit (0-100)
+#   minecraft-cpu freeze         - Set CPU to 0%
+#   minecraft-cpu normal         - Set CPU to max
+#   minecraft-cpu pause          - Pause all Minecraft processes
+#   minecraft-cpu resume         - Resume all Minecraft processes
+#
+
+set -euo pipefail
+
+CGROUP_PATH="/sys/fs/cgroup/minecraft"
+CPU_MAX_FILE="${CGROUP_PATH}/cpu.max"
+CGROUP_PROCS_FILE="${CGROUP_PATH}/cgroup.procs"
+PROCESS_PATTERN="org.multimc.EntryPoint"
+
+# Find all Minecraft processes across all users
+find_minecraft_processes() {
+    pgrep -f "${PROCESS_PATTERN}" 2>/dev/null || true
+}
+
+# Move processes to cgroup
+track_processes() {
+    local pids
+    pids=$(find_minecraft_processes)
+    
+    if [ -z "${pids}" ]; then
+        echo "No Minecraft processes found" >&2
+        return 1
+    fi
+    
+    # Check if cgroup exists
+    if [ ! -d "${CGROUP_PATH}" ]; then
+        echo "Error: Cgroup ${CGROUP_PATH} does not exist. Run 'make setup' first." >&2
+        return 1
+    fi
+    
+    # Move each PID to the cgroup
+    while IFS= read -r pid; do
+        if [ -n "${pid}" ]; then
+            echo "${pid}" | sudo tee "${CGROUP_PROCS_FILE}" > /dev/null 2>&1 || true
+        fi
+    done <<< "${pids}"
+    
+    echo "Tracked $(echo "${pids}" | wc -l) Minecraft process(es)"
+}
+
+# Set CPU limit
+set_cpu_limit() {
+    local limit="${1}"
+    local cpu_max_value
+    
+    # Track processes first
+    track_processes || return 1
+    
+    # Set CPU limit
+    if [ "${limit}" = "max" ]; then
+        cpu_max_value="max 100000"
+    else
+        cpu_max_value="${limit} 100000"
+    fi
+    
+    echo "${cpu_max_value}" | sudo tee "${CPU_MAX_FILE}" > /dev/null
+    echo "Set CPU limit to ${cpu_max_value}"
+}
+
+# Pause all Minecraft processes
+pause_processes() {
+    local pids
+    pids=$(find_minecraft_processes)
+    
+    if [ -z "${pids}" ]; then
+        echo "No Minecraft processes found" >&2
+        return 1
+    fi
+    
+    while IFS= read -r pid; do
+        if [ -n "${pid}" ]; then
+            sudo kill -STOP "${pid}" 2>/dev/null || true
+        fi
+    done <<< "${pids}"
+    
+    echo "Paused $(echo "${pids}" | wc -l) Minecraft process(es)"
+}
+
+# Resume all Minecraft processes
+resume_processes() {
+    local pids
+    pids=$(find_minecraft_processes)
+    
+    if [ -z "${pids}" ]; then
+        echo "No Minecraft processes found" >&2
+        return 1
+    fi
+    
+    while IFS= read -r pid; do
+        if [ -n "${pid}" ]; then
+            sudo kill -CONT "${pid}" 2>/dev/null || true
+        fi
+    done <<< "${pids}"
+    
+    echo "Resumed $(echo "${pids}" | wc -l) Minecraft process(es)"
+}
+
+# Main function
+main() {
+    if [ $# -eq 0 ]; then
+        echo "Usage: minecraft-cpu <percentage|freeze|normal|pause|resume>" >&2
+        echo "  percentage: CPU limit as percentage (0-100)" >&2
+        echo "  freeze:     Set CPU to 0%" >&2
+        echo "  normal:     Set CPU to max" >&2
+        echo "  pause:      Pause all Minecraft processes" >&2
+        echo "  resume:     Resume all Minecraft processes" >&2
+        exit 1
+    fi
+    
+    local arg="${1}"
+    
+    case "${arg}" in
+        freeze)
+            set_cpu_limit 0
+            ;;
+        normal)
+            set_cpu_limit "max"
+            ;;
+        pause)
+            pause_processes
+            ;;
+        resume)
+            resume_processes
+            ;;
+        *)
+            # Validate percentage
+            if ! [[ "${arg}" =~ ^[0-9]+$ ]]; then
+                echo "Error: Invalid argument '${arg}'. Must be a number (0-100) or one of: freeze, normal, pause, resume" >&2
+                exit 1
+            fi
+            
+            if [ "${arg}" -lt 0 ] || [ "${arg}" -gt 100 ]; then
+                echo "Error: Percentage must be between 0 and 100" >&2
+                exit 1
+            fi
+            
+            # Convert percentage to cgroup format (e.g., 50% -> 50000)
+            local limit=$((arg * 1000))
+            set_cpu_limit "${limit}"
+            ;;
+    esac
+}
+
+main "$@"
