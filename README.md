@@ -209,4 +209,4 @@ Contributions are welcome. Report bugs or suggest features through the project's
 
 ## License
 
-This project is provided as-is, without warranty. Use at your own risk.
+This project is licensed under the Rose-Hulman License. See the [LICENSE](LICENSE) file for details.
